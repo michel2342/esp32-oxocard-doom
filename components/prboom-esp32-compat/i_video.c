@@ -164,7 +164,7 @@ void I_PreInitGraphics(void)
 {
 	lprintf(LO_INFO, "preinitgfx");
 #ifdef INTERNAL_MEM_FB
-	screenbuf=pvPortMallocCaps(320*240, MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
+	screenbuf=pvPortMallocCaps(SCREENWIDTH*SCREENHEIGHT, MALLOC_CAP_INTERNAL|MALLOC_CAP_8BIT);
 	assert(screenbuf);
 #endif
 }

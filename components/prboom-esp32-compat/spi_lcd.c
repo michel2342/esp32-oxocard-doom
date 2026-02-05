@@ -25,6 +25,24 @@
 
 #include "sdkconfig.h"
 
+// LCD physical dimensions and addressing offset, derived from controller type
+#if (CONFIG_HW_LCD_TYPE == 2)   /* ST7735 128x128 */
+#define LCD_WIDTH   128
+#define LCD_HEIGHT  128
+#define LCD_XOFFSET CONFIG_HW_LCD_XOFFSET
+#define LCD_YOFFSET CONFIG_HW_LCD_YOFFSET
+#elif (CONFIG_HW_LCD_TYPE == 1) /* ST7789V 320x240 */
+#define LCD_WIDTH   320
+#define LCD_HEIGHT  240
+#define LCD_XOFFSET 0
+#define LCD_YOFFSET 0
+#else                           /* ILI9341 320x240 */
+#define LCD_WIDTH   320
+#define LCD_HEIGHT  240
+#define LCD_XOFFSET 0
+#define LCD_YOFFSET 0
+#endif
+
 
 #if 0
 #define PIN_NUM_MISO 25
@@ -75,6 +93,33 @@ static const ili_init_cmd_t ili_init_cmds[]={
     {0xE1, {0xD0, 0x00, 0x05, 0x0D, 0x0C, 0x06, 0x2D, 0x44, 0x40, 0x0E, 0x1C, 0x18, 0x16, 0x19}, 14},
     {0x11, {0}, 0x80},
     {0x29, {0}, 0x80},
+    {0, {0}, 0xff}
+};
+
+#endif
+
+#if (CONFIG_HW_LCD_TYPE == 2)
+
+static const ili_init_cmd_t ili_init_cmds[]={
+    {0x01, {0}, 0x80},                                                              // Software reset, 100ms delay
+    {0x11, {0}, 0x80},                                                              // Sleep out, 100ms delay
+    {0x3A, {0x55}, 1},                                                              // Color format: 16-bit RGB565
+    {0x36, {0x48}, 1},                                                              // MADCTL: MX + BGR  (adjust byte if orientation is wrong)
+    {0xB1, {0x01, 0x2C, 0x2D}, 3},                                                  // FRMCTR1 - frame rate in normal mode
+    {0xB2, {0x01, 0x2C, 0x2D}, 3},                                                  // FRMCTR2 - frame rate in idle mode
+    {0xB3, {0x01, 0x2C, 0x2D, 0x01, 0x2C, 0x2D}, 6},                               // FRMCTR3 - frame rate in partial mode
+    {0xB4, {0x00}, 1},                                                              // INVCTR
+    {0xC0, {0x03, 0x0D, 0x0D}, 3},                                                  // PWCTR1
+    {0xC1, {0x83}, 1},                                                              // PWCTR2
+    {0xC2, {0x00}, 1},                                                              // PWCTR3
+    {0xC3, {0x0E, 0x0D}, 2},                                                        // PWCTR4
+    {0xC4, {0x0E, 0x0D}, 2},                                                        // PWCTR5
+    {0xC5, {0x52}, 1},                                                              // VCMPF
+    {0xC6, {0xFF}, 1},                                                              // Frame rate control
+    {0x20, {0}, 0},                                                                 // Inversion off
+    {0xE0, {0x02, 0x1F, 0x1C, 0x18, 0x36, 0x05, 0x0A, 0x0C, 0x30, 0x38, 0x0F, 0x25, 0x30, 0x1A, 0x1A, 0x50}, 16}, // Gamma curve positive
+    {0xE1, {0x00, 0x00, 0x05, 0x10, 0x0E, 0x24, 0x8A, 0x08, 0x16, 0x13, 0x10, 0x1A, 0x0A, 0x10, 0x0A, 0x0A}, 16}, // Gamma curve negative
+    {0x29, {0}, 0x80},                                                              // Display on, 100ms delay
     {0, {0}, 0xff}
 };
 
@@ -260,7 +305,11 @@ SemaphoreHandle_t dispSem = NULL;
 SemaphoreHandle_t dispDoneSem = NULL;
 
 #define NO_SIM_TRANS 5 //Amount of SPI transfers to queue in parallel
-#define MEM_PER_TRANS 1024*3 //in 16-bit words
+#if (CONFIG_HW_LCD_TYPE == 2)
+#define MEM_PER_TRANS (1024*4) //in 16-bit words; 128*128 / 4 chunks = 4096 per chunk
+#else
+#define MEM_PER_TRANS (1024*3) //in 16-bit words
+#endif
 
 extern int16_t lcdpal[256];
 
@@ -318,9 +367,9 @@ void IRAM_ATTR displayTask(void *arg) {
 		uint8_t *myData=(uint8_t*)currFbPtr;
 #endif
 
-		send_header_start(spi, 0, 0, 320, 240);
+		send_header_start(spi, LCD_XOFFSET, LCD_YOFFSET, LCD_WIDTH, LCD_HEIGHT);
 		send_header_cleanup(spi);
-		for (x=0; x<320*240; x+=MEM_PER_TRANS) {
+		for (x=0; x<LCD_WIDTH*LCD_HEIGHT; x+=MEM_PER_TRANS) {
 #ifdef DOUBLE_BUFFER
 			for (i=0; i<MEM_PER_TRANS; i+=4) {
 				uint32_t d=currFbPtr[(x+i)/4];
@@ -375,7 +424,7 @@ void spi_lcd_wait_finish() {
 
 void spi_lcd_send(uint16_t *scr) {
 #ifdef DOUBLE_BUFFER
-	memcpy(currFbPtr, scr, 320*240);
+	memcpy(currFbPtr, scr, LCD_WIDTH*LCD_HEIGHT);
 	//Theoretically, also should double-buffer the lcdpal array... ahwell.
 #else
 	currFbPtr=scr;
@@ -388,7 +437,7 @@ void spi_lcd_init() {
     dispSem=xSemaphoreCreateBinary();
     dispDoneSem=xSemaphoreCreateBinary();
 #ifdef DOUBLE_BUFFER
-	currFbPtr=pvPortMallocCaps(320*240, MALLOC_CAP_32BIT);
+	currFbPtr=pvPortMallocCaps(LCD_WIDTH*LCD_HEIGHT, MALLOC_CAP_32BIT);
 #endif
 #if CONFIG_FREERTOS_UNICORE
 	xTaskCreatePinnedToCore(&displayTask, "display", 6000, NULL, 6, NULL, 0);
