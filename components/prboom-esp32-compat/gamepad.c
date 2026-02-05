@@ -15,6 +15,7 @@
 
 #include <stdlib.h>
 
+#include "sdkconfig.h"
 #include "doomdef.h"
 #include "doomtype.h"
 #include "m_argv.h"
@@ -24,9 +25,14 @@
 #include "gamepad.h"
 #include "lprintf.h"
 
-#include "psxcontroller.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+
+#ifdef CONFIG_HW_OXOCARD_INPUT
+#include "oxobuttons.h"
+#else
+#include "psxcontroller.h"
+#endif
 
 
 //The gamepad uses keyboard emulation, but for compilation, these variables need to be placed
@@ -35,7 +41,95 @@ int usejoystick=0;
 int joyleft, joyright, joyup, joydown;
 
 
-//atomic, for communication between joy thread and main game thread
+// ---------------------------------------------------------------------------
+// Oxocard 6-button input path
+// ---------------------------------------------------------------------------
+#ifdef CONFIG_HW_OXOCARD_INPUT
+
+// Key mapping for each of the 5 action buttons.
+// Index matches oxo_btn_t: FWD=0, BACK=1, TURNL=2, TURNR=3, SHOOT=4.
+// key_normal is used when Strafe modifier is released;
+// key_strafe is used when Strafe modifier is held.
+// Pointers because key_* values are set at runtime by the engine.
+static const struct {
+    int *key_normal;
+    int *key_strafe;
+} oxo_key_map[5] = {
+    {&key_up,    &key_up},              // FWD   - unaffected by strafe
+    {&key_down,  &key_down},            // BACK  - unaffected by strafe
+    {&key_left,  &key_strafeleft},      // TURNL - becomes strafe left
+    {&key_right, &key_straferight},     // TURNR - becomes strafe right
+    {&key_fire,  &key_fire},            // SHOOT - unaffected by strafe
+};
+
+// Tracks which Doom key is currently "held down" for each action button.
+// 0 means no key is currently posted for that button.
+static int last_posted_key[5] = {0};
+
+void gamepadPoll(void)
+{
+    event_t ev;
+    int strafe_held = oxobuttons_pressed(OXO_BTN_STRAFE);
+
+    for (int i = 0; i < 5; i++) {
+        int pressed   = oxobuttons_pressed((oxo_btn_t)i);
+        int mapped_key = strafe_held ? *oxo_key_map[i].key_strafe
+                                     : *oxo_key_map[i].key_normal;
+
+        if (pressed) {
+            if (last_posted_key[i] == 0) {
+                // Button freshly pressed
+                ev.type  = ev_keydown;
+                ev.data1 = mapped_key;
+                D_PostEvent(&ev);
+                last_posted_key[i] = mapped_key;
+            } else if (last_posted_key[i] != mapped_key) {
+                // Strafe modifier toggled while this button was already held:
+                // release the old key, press the new one
+                ev.type  = ev_keyup;
+                ev.data1 = last_posted_key[i];
+                D_PostEvent(&ev);
+                ev.type  = ev_keydown;
+                ev.data1 = mapped_key;
+                D_PostEvent(&ev);
+                last_posted_key[i] = mapped_key;
+            }
+            // else: same key still held, nothing to do
+        } else {
+            if (last_posted_key[i] != 0) {
+                // Button released
+                ev.type  = ev_keyup;
+                ev.data1 = last_posted_key[i];
+                D_PostEvent(&ev);
+                last_posted_key[i] = 0;
+            }
+        }
+    }
+}
+
+void jsTask(void *arg) {
+    printf("Oxocard button task starting.\n");
+    while(1) {
+        vTaskDelay(20/portTICK_PERIOD_MS);
+        oxobuttons_poll();
+    }
+}
+
+void gamepadInit(void)
+{
+    lprintf(LO_INFO, "gamepadInit: Oxocard 6-button input.\n");
+}
+
+void jsInit() {
+    oxobuttons_init();
+    xTaskCreatePinnedToCore(&jsTask, "js", 5000, NULL, 7, NULL, 0);
+}
+
+// ---------------------------------------------------------------------------
+// PSX controller input path (original code, unchanged)
+// ---------------------------------------------------------------------------
+#else
+
 volatile int joyVal=0;
 
 typedef struct {
@@ -43,13 +137,12 @@ typedef struct {
 	int *key;
 } JsKeyMap;
 
-//Mappings from PS2 buttons to keys
 static const JsKeyMap keymap[]={
 	{0x10, &key_up},
 	{0x40, &key_down},
 	{0x80, &key_left},
 	{0x20, &key_right},
-	
+
 	{0x4000, &key_use},				//cross
 	{0x2000, &key_fire},			//circle
 	{0x2000, &key_menu_enter},		//circle
@@ -58,7 +151,7 @@ static const JsKeyMap keymap[]={
 
 	{0x8, &key_escape},				//start
 	{0x1, &key_map},				//select
-	
+
 	{0x400, &key_strafeleft},		//L1
 	{0x100, &key_speed},			//L2
 	{0x800, &key_straferight},		//R1
@@ -66,7 +159,6 @@ static const JsKeyMap keymap[]={
 
 	{0, NULL},
 };
-
 
 void gamepadPoll(void)
 {
@@ -85,14 +177,12 @@ void gamepadPoll(void)
 	oldPollJsVal=newJoyVal;
 }
 
-
 void jsTask(void *arg) {
 	int oldJoyVal=0xFFFF;
 	printf("Joystick task starting.\n");
 	while(1) {
 		vTaskDelay(20/portTICK_PERIOD_MS);
 		joyVal=psxReadInput();
-//		if (joyVal!=oldJoyVal) printf("Joy: %x\n", joyVal^0xffff);
 		oldJoyVal=joyVal;
 	}
 }
@@ -103,8 +193,9 @@ void gamepadInit(void)
 }
 
 void jsInit() {
-	//Starts the js task
 	psxcontrollerInit();
 	xTaskCreatePinnedToCore(&jsTask, "js", 5000, NULL, 7, NULL, 0);
 }
+
+#endif /* CONFIG_HW_OXOCARD_INPUT */
 
