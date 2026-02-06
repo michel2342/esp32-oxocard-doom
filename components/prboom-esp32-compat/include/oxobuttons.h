@@ -2,13 +2,12 @@
 #define OXOBUTTONS_H
 
 typedef enum {
-    OXO_BTN_FWD    = 0,
-    OXO_BTN_BACK   = 1,
-    OXO_BTN_TURNL  = 2,
-    OXO_BTN_TURNR  = 3,
-    OXO_BTN_SHOOT  = 4,
-    OXO_BTN_STRAFE = 5,
-    OXO_NUM_BTNS   = 6
+    OXO_BTN_UP     = 0,
+    OXO_BTN_DOWN   = 1,
+    OXO_BTN_LEFT   = 2,
+    OXO_BTN_RIGHT  = 3,
+    OXO_BTN_MIDDLE = 4,
+    OXO_NUM_BTNS   = 5
 } oxo_btn_t;
 
 // Configure GPIO pins and start polling.  Call once at startup.

@@ -18,6 +18,7 @@
 #include "sdkconfig.h"
 #include "doomdef.h"
 #include "doomtype.h"
+#include "doomstat.h"
 #include "m_argv.h"
 #include "d_event.h"
 #include "g_game.h"
@@ -41,74 +42,54 @@ int usejoystick=0;
 int joyleft, joyright, joyup, joydown;
 
 
-// ---------------------------------------------------------------------------
-// Oxocard 6-button input path
-// ---------------------------------------------------------------------------
 #ifdef CONFIG_HW_OXOCARD_INPUT
 
-// Key mapping for each of the 5 action buttons.
-// Index matches oxo_btn_t: FWD=0, BACK=1, TURNL=2, TURNR=3, SHOOT=4.
-// key_normal is used when Strafe modifier is released;
-// key_strafe is used when Strafe modifier is held.
-// Pointers because key_* values are set at runtime by the engine.
-static const struct {
-    int *key_normal;
-    int *key_strafe;
-} oxo_key_map[5] = {
-    {&key_up,    &key_up},              // FWD   - unaffected by strafe
-    {&key_down,  &key_down},            // BACK  - unaffected by strafe
-    {&key_left,  &key_strafeleft},      // TURNL - becomes strafe left
-    {&key_right, &key_straferight},     // TURNR - becomes strafe right
-    {&key_fire,  &key_fire},            // SHOOT - unaffected by strafe
+//Key mapping per button. Index matches oxo_btn_t.
+static int *oxo_key_map[5] = {
+    &key_up, &key_down, &key_left, &key_right, &key_fire,
 };
 
-// Tracks which Doom key is currently "held down" for each action button.
-// 0 means no key is currently posted for that button.
-static int last_posted_key[5] = {0};
+static int button_is_pressed[5] = {0};
+static int middle_button_last_key = 0;
 
 void gamepadPoll(void)
 {
-    event_t ev;
-    int strafe_held = oxobuttons_pressed(OXO_BTN_STRAFE);
-
     for (int i = 0; i < 5; i++) {
-        int pressed   = oxobuttons_pressed((oxo_btn_t)i);
-        int mapped_key = strafe_held ? *oxo_key_map[i].key_strafe
-                                     : *oxo_key_map[i].key_normal;
+        int pressed = oxobuttons_pressed((oxo_btn_t)i);
+        int was_pressed = button_is_pressed[i];
 
-        if (pressed) {
-            if (last_posted_key[i] == 0) {
-                // Button freshly pressed
-                ev.type  = ev_keydown;
-                ev.data1 = mapped_key;
-                D_PostEvent(&ev);
-                last_posted_key[i] = mapped_key;
-            } else if (last_posted_key[i] != mapped_key) {
-                // Strafe modifier toggled while this button was already held:
-                // release the old key, press the new one
-                ev.type  = ev_keyup;
-                ev.data1 = last_posted_key[i];
-                D_PostEvent(&ev);
-                ev.type  = ev_keydown;
-                ev.data1 = mapped_key;
-                D_PostEvent(&ev);
-                last_posted_key[i] = mapped_key;
+        if (pressed && !was_pressed) {
+            event_t ev = {0};
+            ev.type  = ev_keydown;
+
+            if (i == 4) {
+                //Middle: menu_enter in menus, fire in gameplay
+                ev.data1 = menuactive ? key_menu_enter : key_fire;
+                middle_button_last_key = ev.data1;
+            } else {
+                ev.data1 = *oxo_key_map[i];
             }
-            // else: same key still held, nothing to do
-        } else {
-            if (last_posted_key[i] != 0) {
-                // Button released
-                ev.type  = ev_keyup;
-                ev.data1 = last_posted_key[i];
-                D_PostEvent(&ev);
-                last_posted_key[i] = 0;
+
+            D_PostEvent(&ev);
+            button_is_pressed[i] = 1;
+        } else if (!pressed && was_pressed) {
+            event_t ev = {0};
+            ev.type  = ev_keyup;
+
+            if (i == 4) {
+                //Must match the key posted on keydown
+                ev.data1 = middle_button_last_key;
+            } else {
+                ev.data1 = *oxo_key_map[i];
             }
+
+            D_PostEvent(&ev);
+            button_is_pressed[i] = 0;
         }
     }
 }
 
 void jsTask(void *arg) {
-    printf("Oxocard button task starting.\n");
     while(1) {
         vTaskDelay(20/portTICK_PERIOD_MS);
         oxobuttons_poll();
@@ -117,7 +98,7 @@ void jsTask(void *arg) {
 
 void gamepadInit(void)
 {
-    lprintf(LO_INFO, "gamepadInit: Oxocard 6-button input.\n");
+    lprintf(LO_INFO, "gamepadInit: Oxocard 5-button input.\n");
 }
 
 void jsInit() {
@@ -125,9 +106,6 @@ void jsInit() {
     xTaskCreatePinnedToCore(&jsTask, "js", 5000, NULL, 7, NULL, 0);
 }
 
-// ---------------------------------------------------------------------------
-// PSX controller input path (original code, unchanged)
-// ---------------------------------------------------------------------------
 #else
 
 volatile int joyVal=0;
