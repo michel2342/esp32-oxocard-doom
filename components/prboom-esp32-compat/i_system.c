@@ -181,6 +181,10 @@ int I_Open(const char *wad, int flags) {
 	while (fds[x].part!=NULL) x++;
 	if (strcmp(wad, "DOOM1.WAD")==0) {
 		fds[x].part=esp_partition_find_first(66, 6, NULL);
+		if (fds[x].part == NULL) {
+			lprintf(LO_ERROR, "I_Open: WAD partition not found (type 66, subtype 6)\n");
+			return -1;
+		}
 		fds[x].offset=0;
 		fds[x].size=fds[x].part->size;
 	} else {
@@ -253,6 +257,8 @@ static void freeUnusedMmaps() {
 		if (mmapHandle[i].used==0 && mmapHandle[i].addr!=NULL) {
 			spi_flash_munmap(mmapHandle[i].handle);
 			mmapHandle[i].addr=NULL;
+			mmapHandle[i].offset=0;
+			mmapHandle[i].len=0;
 			printf("Freeing handle %d\n", i);
 		}
 	}
@@ -331,11 +337,6 @@ char* I_FindFile(const char* wfname, const char* ext)
 
 void I_SetAffinityMask(void)
 {
-}
-
-
-int access(const char *path, int atype) {
-    return 1;
 }
 
 

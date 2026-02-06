@@ -135,12 +135,9 @@ void R_LoadTrigTables(void)
     }
 
     // Must correct endianness of every long loaded (!)
-#define CORRECT_TABLE_ENDIAN(tbl) \
-    for (n = 0; n<sizeof(tbl)/sizeof(tbl[0]); n++) tbl[n] = doom_swap_l(tbl[n])
-
-    CORRECT_TABLE_ENDIAN(finesine);
-    CORRECT_TABLE_ENDIAN(finetangent);
-    CORRECT_TABLE_ENDIAN(tantoangle);
+    for (n = 0; n < SINETABL_dat_len / sizeof(fixed_t); n++) finesine[n] = doom_swap_l(finesine[n]);
+    for (n = 0; n < TANGTABL_dat_len / sizeof(fixed_t); n++) finetangent[n] = doom_swap_l(finetangent[n]);
+    for (n = 0; n < TANTOANG_dat_len / sizeof(angle_t); n++) tantoangle[n] = doom_swap_l(tantoangle[n]);
     lprintf(LO_INFO, "corrected.");
   }
 }

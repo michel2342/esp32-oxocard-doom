@@ -5,5 +5,6 @@
 
 PROJECT_NAME := esp32-doom
 
-include $(IDF_PATH)/make/project.mk
+EXCLUDE_COMPONENTS := asio coap esp_gdbstub
 
+include $(IDF_PATH)/make/project.mk

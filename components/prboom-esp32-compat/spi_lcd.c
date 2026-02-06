@@ -17,11 +17,12 @@
 #include <string.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "freertos/semphr.h"
 #include "esp_system.h"
 #include "driver/spi_master.h"
 #include "soc/gpio_struct.h"
 #include "driver/gpio.h"
-#include "esp_heap_alloc_caps.h"
+#include "esp_heap_caps.h"
 
 #include "sdkconfig.h"
 
@@ -31,8 +32,8 @@
 #define LCD_HEIGHT  128
 #define LCD_XOFFSET CONFIG_HW_LCD_XOFFSET
 #define LCD_YOFFSET CONFIG_HW_LCD_YOFFSET
-#elif (CONFIG_HW_LCD_TYPE == 1) /* ST7789V 320x240 */
-#define LCD_WIDTH   320
+#elif (CONFIG_HW_LCD_TYPE == 1) /* ST7789V 240x240 full screen */
+#define LCD_WIDTH   240
 #define LCD_HEIGHT  240
 #define LCD_XOFFSET 0
 #define LCD_YOFFSET 0
@@ -78,7 +79,7 @@ typedef struct {
 #if (CONFIG_HW_LCD_TYPE == 1)
 
 static const ili_init_cmd_t ili_init_cmds[]={
-    {0x36, {(1<<5)|(1<<6)}, 1},
+    {0x36, {0x00}, 1},              // MADCTL: Normal orientation, RGB order
     {0x3A, {0x55}, 1},
     {0xB2, {0x0c, 0x0c, 0x00, 0x33, 0x33}, 5},
     {0xB7, {0x45}, 1},
@@ -89,6 +90,7 @@ static const ili_init_cmd_t ili_init_cmds[]={
     {0xC4, {0x20}, 1},
     {0xC6, {0x0f}, 1},
     {0xD0, {0xA4, 0xA1}, 1},
+    {0x21, {0}, 0},                 // Display inversion ON
     {0xE0, {0xD0, 0x00, 0x05, 0x0E, 0x15, 0x0D, 0x37, 0x43, 0x47, 0x09, 0x15, 0x12, 0x16, 0x19}, 14},
     {0xE1, {0xD0, 0x00, 0x05, 0x0D, 0x0C, 0x06, 0x2D, 0x44, 0x40, 0x0E, 0x1C, 0x18, 0x16, 0x19}, 14},
     {0x11, {0}, 0x80},
@@ -104,7 +106,7 @@ static const ili_init_cmd_t ili_init_cmds[]={
     {0x01, {0}, 0x80},                                                              // Software reset, 100ms delay
     {0x11, {0}, 0x80},                                                              // Sleep out, 100ms delay
     {0x3A, {0x55}, 1},                                                              // Color format: 16-bit RGB565
-    {0x36, {0x48}, 1},                                                              // MADCTL: MX + BGR  (adjust byte if orientation is wrong)
+    {0x36, {0xA8}, 1},                                                              // MADCTL: MY + MV + BGR
     {0xB1, {0x01, 0x2C, 0x2D}, 3},                                                  // FRMCTR1 - frame rate in normal mode
     {0xB2, {0x01, 0x2C, 0x2D}, 3},                                                  // FRMCTR2 - frame rate in idle mode
     {0xB3, {0x01, 0x2C, 0x2D, 0x01, 0x2C, 0x2D}, 6},                               // FRMCTR3 - frame rate in partial mode
@@ -116,7 +118,7 @@ static const ili_init_cmd_t ili_init_cmds[]={
     {0xC4, {0x0E, 0x0D}, 2},                                                        // PWCTR5
     {0xC5, {0x52}, 1},                                                              // VCMPF
     {0xC6, {0xFF}, 1},                                                              // Frame rate control
-    {0x20, {0}, 0},                                                                 // Inversion off
+    {0x21, {0}, 0},                                                                 // Inversion on
     {0xE0, {0x02, 0x1F, 0x1C, 0x18, 0x36, 0x05, 0x0A, 0x0C, 0x30, 0x38, 0x0F, 0x25, 0x30, 0x1A, 0x1A, 0x50}, 16}, // Gamma curve positive
     {0xE1, {0x00, 0x00, 0x05, 0x10, 0x0E, 0x24, 0x8A, 0x08, 0x16, 0x13, 0x10, 0x1A, 0x0A, 0x10, 0x0A, 0x0A}, 16}, // Gamma curve negative
     {0x29, {0}, 0x80},                                                              // Display on, 100ms delay
@@ -301,8 +303,8 @@ volatile static uint16_t *currFbPtr=NULL;
 //Warning: This gets squeezed into IRAM.
 static uint32_t *currFbPtr=NULL;
 #endif
-SemaphoreHandle_t dispSem = NULL;
-SemaphoreHandle_t dispDoneSem = NULL;
+xSemaphoreHandle dispSem = NULL;
+xSemaphoreHandle dispDoneSem = NULL;
 
 #define NO_SIM_TRANS 5 //Amount of SPI transfers to queue in parallel
 #if (CONFIG_HW_LCD_TYPE == 2)
@@ -351,7 +353,7 @@ void IRAM_ATTR displayTask(void *arg) {
 
 	//We're going to do a fair few transfers in parallel. Set them all up.
 	for (x=0; x<NO_SIM_TRANS; x++) {
-		dmamem[x]=pvPortMallocCaps(MEM_PER_TRANS*2, MALLOC_CAP_DMA);
+		dmamem[x]=heap_caps_malloc(MEM_PER_TRANS*2, MALLOC_CAP_DMA);
 		assert(dmamem[x]);
 		memset(&trans[x], 0, sizeof(spi_transaction_t));
 		trans[x].length=MEM_PER_TRANS*2;
@@ -414,7 +416,7 @@ void IRAM_ATTR displayTask(void *arg) {
 #include    <xtensa/config/core.h>
 #include    <xtensa/corebits.h>
 #include    <xtensa/config/system.h>
-#include    <xtensa/simcall.h>
+//#include    <xtensa/simcall.h>
 
 void spi_lcd_wait_finish() {
 #ifndef DOUBLE_BUFFER
@@ -437,7 +439,7 @@ void spi_lcd_init() {
     dispSem=xSemaphoreCreateBinary();
     dispDoneSem=xSemaphoreCreateBinary();
 #ifdef DOUBLE_BUFFER
-	currFbPtr=pvPortMallocCaps(LCD_WIDTH*LCD_HEIGHT, MALLOC_CAP_32BIT);
+	currFbPtr=heap_caps_malloc(LCD_WIDTH*LCD_HEIGHT, MALLOC_CAP_32BIT);
 #endif
 #if CONFIG_FREERTOS_UNICORE
 	xTaskCreatePinnedToCore(&displayTask, "display", 6000, NULL, 6, NULL, 0);
