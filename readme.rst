@@ -1,6 +1,14 @@
 ESP32-DOOM, a port of PrBoom to the ESP32
 =========================================
 
+Oxocard Science Fork
+--------------------
+
+This fork adds support for the `Oxocard Science <https://oxocard.ch/en/science/>`_ (ESP32-PICO-V3-02,
+ST7789V 240x240 LCD, 5-button input). See `OXOCARD.md <OXOCARD.md>`_ for setup and porting details.
+
+----
+
 This is a port of PrBoom, which is a port of the original 1993 ID software hit game Doom, to the
 ESP32. It runs on an ESP32 which has 4MiB of flash and 4MiB of PSRAM connected.
 
