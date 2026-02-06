@@ -1,7 +1,7 @@
 ESP32-DOOM, a port of PrBoom to the ESP32
 =========================================
 
-Oxocard Science Fork
+Vibe-Coded Oxocard Science Fork
 --------------------
 
 This fork adds support for the `Oxocard Science <https://oxocard.ch/en/science/>`_ (ESP32-PICO-V3-02,
