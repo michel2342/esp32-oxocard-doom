@@ -411,7 +411,7 @@ void WI_levelNameLump(int epis, int map, char* buf)
 //
 static void WI_slamBackground(void)
 {
-  char  name[9];  // limited to 8 characters
+  char  name[32];
 
   if (gamemode == commercial || (gamemode == retail && wbs->epsd == 3))
     strcpy(name, "INTERPIC");
@@ -1831,7 +1831,7 @@ void WI_loadData(void)
 {
   int   i;
   int   j;
-  char  name[9];  // limited to 8 characters
+  char  name[32];
   anim_t* a;
 
   if (gamemode != commercial)

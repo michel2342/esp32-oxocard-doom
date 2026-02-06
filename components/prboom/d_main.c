@@ -135,7 +135,7 @@ const char *const standard_iwads[]=
   "doomu.wad", /* CPhipps - alow doomu.wad */
   "freedoom.wad", /* wart@kobold.org:  added freedoom for Fedora Extras */
 };
-static const int nstandard_iwads = sizeof standard_iwads/sizeof*standard_iwads;
+//static const int nstandard_iwads = sizeof standard_iwads/sizeof*standard_iwads;
 
 /*
  * D_PostEvent - Event handling
@@ -1670,8 +1670,8 @@ void GetFirstMap(int *ep, int *map)
 {
   int i,j; // used to generate map name
   boolean done = false;  // Ty 09/13/98 - to exit inner loops
-  char test[6];  // MAPxx or ExMx plus terminator for testing
-  char name[6];  // MAPxx or ExMx plus terminator for display
+  char test[32];
+  char name[16];
   boolean newlevel = false;  // Ty 10/04/98 - to test for new level
   int ix;  // index for lookup
 
@@ -1684,7 +1684,7 @@ void GetFirstMap(int *ep, int *map)
     {
       for (i=1;!done && i<33;i++)  // Ty 09/13/98 - add use of !done
       {
-        sprintf(test,"MAP%02d",i);
+        snprintf(test, sizeof(test), "MAP%02d",i);
         ix = W_CheckNumForName(test);
         if (ix != -1)  // Ty 10/04/98 avoid -1 subscript
         {
@@ -1710,7 +1710,7 @@ void GetFirstMap(int *ep, int *map)
       {
         for (j=1;!done && j<10;j++)  // Ty 09/13/98 - add use of !done
         {
-          sprintf(test,"E%dM%d",i,j);
+          snprintf(test, sizeof(test), "E%dM%d",i,j);
           ix = W_CheckNumForName(test);
           if (ix != -1)  // Ty 10/04/98 avoid -1 subscript
           {
