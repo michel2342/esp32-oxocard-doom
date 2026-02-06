@@ -2239,17 +2239,18 @@ void G_RecordDemo (const char* name)
         }
       }
       bytes_per_tic = longtics ? 5 : 4;
-    if (pos)
+      if (pos) {
       /* Now read the demo to find the last save slot */
       do {
         byte buf[5];
-      
+
         rc = fread(buf, 1, bytes_per_tic, demofp);
         if (buf[0] == DEMOMARKER) break;
         if (buf[bytes_per_tic-1] & BT_SPECIAL)
           if ((buf[bytes_per_tic-1] & BT_SPECIALMASK) == BTS_SAVEGAME)
             slot = (buf[bytes_per_tic-1] & BTS_SAVEMASK)>>BTS_SAVESHIFT;
       } while (rc == bytes_per_tic);
+      }
 
       if (slot == -1) I_Error("G_RecordDemo: No save in demo, can't continue");
 
@@ -2711,21 +2712,23 @@ static const byte* G_ReadDemoHeader(const byte *demo_p, size_t size, boolean fai
         if (CheckForOverrun(header_p, demo_p, size, 1, failonerror))
           return NULL;
 
-        if (!*demo_p++)
+        if (!*demo_p++) {
 	  compatibility_level = boom_201_compatibility;
-        else
+        } else {
 	  compatibility_level = boom_compatibility_compatibility;
-	  break;
+        }
+	break;
       case 202:
         //e6y: check for overrun
         if (CheckForOverrun(header_p, demo_p, size, 1, failonerror))
           return NULL;
 
-        if (!*demo_p++)
+        if (!*demo_p++) {
 	  compatibility_level = boom_202_compatibility;
-        else
+        } else {
 	  compatibility_level = boom_compatibility_compatibility;
-	  break;
+        }
+	break;
       case 203:
 	/* LxDoom or MBF - determine from signature
 	 * cph - load compatibility level */

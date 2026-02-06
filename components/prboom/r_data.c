@@ -224,7 +224,7 @@ static void R_InitTextures (void)
       texture->height = SHORT(mtexture->height);
       texture->patchcount = SHORT(mtexture->patchcount);
 
-        /* Mattias Engdegård emailed me of the following explenation of
+        /* Mattias Engdegï¿½rd emailed me of the following explenation of
          * why memcpy doesnt work on some systems:
          * "I suppose it is the mad unaligned allocation
          * going on (and which gcc in some way manages to cope with
@@ -412,12 +412,14 @@ const lighttable_t* R_ColourMap(int lightlevel, fixed_t spryscale)
 {
   if (fixedcolormap) return fixedcolormap;
   else {
-    if (curline)
-      if (curline->v1->y == curline->v2->y)
+    if (curline) {
+      if (curline->v1->y == curline->v2->y) {
         lightlevel -= 1 << LIGHTSEGSHIFT;
-      else
+      } else {
         if (curline->v1->x == curline->v2->x)
           lightlevel += 1 << LIGHTSEGSHIFT;
+      }
+    }
 
     lightlevel += extralight << LIGHTSEGSHIFT;
 

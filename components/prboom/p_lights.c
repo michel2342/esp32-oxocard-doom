@@ -382,12 +382,13 @@ int EV_LightTurnOn(line_t *line, int bright)
 
       // bright = 0 means to search for highest light level surrounding sector
 
-      if (!bright)
-  for (j = 0;j < sector->linecount; j++)
-    if ((temp = getNextSector(sector->lines[j],sector)) &&
-        temp->lightlevel > tbright)
-      tbright = temp->lightlevel;
-
+      if (!bright) {
+        for (j = 0;j < sector->linecount; j++) {
+          if ((temp = getNextSector(sector->lines[j],sector)) &&
+              temp->lightlevel > tbright)
+            tbright = temp->lightlevel;
+        }
+      }
       sector->lightlevel = tbright;
 
       //jff 5/17/98 unless compatibility optioned

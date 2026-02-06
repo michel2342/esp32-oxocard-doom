@@ -1499,7 +1499,7 @@ boolean PTR_ShootTraverse (intercept_t* in)
     if (li->special)
       P_ShootSpecialLine (shootthing, li);
 
-      if (li->flags & ML_TWOSIDED)
+    if (li->flags & ML_TWOSIDED)
   {  // crosses a two sided (really 2s) line
     P_LineOpening (li);
     dist = FixedMul(attackrange, in->frac);
